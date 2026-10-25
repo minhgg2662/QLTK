@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="vi">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Quản lý tài khoản</title>
+
+        <style>
+            body { font-family: "Segoe UI", sans-serif; max-width: 640px; margin: 0 auto; padding: 16px; background: #f3f5f2; }
+            input, button { font: inherit; padding: 10px 12px; border-radius: 8px; border: 1px solid #ccc; }
+            button { cursor: pointer; background: #fff; }
+            #list { list-style: none; padding: 0; margin: 12px 0; }
+            #list li { display: flex; align-items: center; gap: 8px; background: #fff; border: 1px solid #d9e0db; border-radius: 10px; padding: 10px 14px; margin-bottom: 8px; }
+            #list .t { flex: 1; overflow-wrap: anywhere; }
+            button:disabled {
+                background:#e3e6e4;
+                color:#999;
+                cursor:not-allowed;
+            }
+            .tab-on {
+                background:#1f6f54;
+                color:#fff;
+                border-color:#1f6f54;
+            }
+            .tab-off {
+                background:#e3e6e4;
+                color:#999;
+            }
+
+        </style>
+    </head>
+    <body>
+        
+        <h1>Quản lý tài khoản</h1>
+
+        <div>
+            <label for="one">Tên tài khoản:</label>
+            <input id="one" placeholder="Nhập tên tài khoản">
+            <button id="addBtn">Thêm tài khoản</button>
+        </div>
+
+        <div>
+            <button id="tabTodo">Chưa copy</button>
+            <button id="tabDone">Đã copy</button>
+        </div>
+
+        <ul id="list"></ul>
+
+        <script>
+            let items = [];
+            let view = "todo";
+
+            function load() {   
+                const saved = localStorage.getItem("acc");
+                if (saved) item = JSON.parse(saved);
+            }
+
+            function save() {
+                localStorage.setItem("acc", JSON.stringify(item));
+            }
+
+            function render() {
+                document.getElementById("tabTodo").className = (view === "todo") ? "tab-on" : "tab-off";
+                document.getElementById("tabDone").className = (view === "done") ? "tab-on" : "tab-off";
+                const ul = document.getElementById("list");
+                ul.innerHTML = "";
+                const showCopied = (view === "done");
+                const shown = items.filter(function (i) {
+                    return i.copied == showCopied;
+                });
+                shown.forEach(function (it) {
+                    const li = document.createElement("li");
+                    const t = document.createElement("div");
+                    t.className = "t";
+                    t.textContent = it.text;
+
+                    const btnCopy = document.createElement("button");
+                    btnCopy.textContent = it.copied ? "Đã copy" : "Copy";
+                    btnCopy.disabled = it.copied;
+                    btnCopy.onclick = function () {
+                        doCopy(it);
+                    };
+
+                    const btnRemove = document.createElement("button");
+                    btnRemove.textContent = "Xóa";
+                    btnRemove.onclick = function () {
+                        remove(it.id);
+                    };
+                    li.appendChild(t);
+                    li.appendChild(btnCopy);
+                    li.appendChild(btnRemove);
+                    ul.appendChild(li);
+                });
+            }
+
+            function remove(id) {
+                items = items.filter(function (i) {
+                    return it.id !== id;
+                });
+                save();
+                render();
+            }
+
+            async function doCopy(it) {
+                try {
+                    await navigator.clipboard.writeText(it.text);
+                } catch (err) {
+                    alert ("Không thể copy: " + err);
+                    return;
+                }
+                it.copied = true;
+
+                const conlai = items.filter(function (i) {
+                    return !i.copied;
+                });
+                if (conlai.length === 0) {
+                    items.forEach(function (i) {
+                        i.copied = false;
+                    });
+                    view = "todo";
+                    alert("Đã copy hết tài khoản, quay lại danh sách chưa copy");
+                }
+
+                save();
+                render();
+            }
+
+            function add(text) {
+                text = text.trim();
+                if (!text) return;
+                const trung =items.some(function (i) {
+                    return i.text === text;
+                });
+                if (trung) {
+                    alert("Tài khoản đã tồn tại");
+                    return;
+                }
+                items.push({ id: Date.now(), text: text, copied: false });
+                save();
+                render();
+            }
+
+            document.getElementById("addBtn").onclick = function () {
+                const o = document.getElementById("one");
+                add(o.value);
+                o.value = "";
+                o.focus();
+            };
+
+            document.getElementById("tabTodo").onclick = function () {
+                view = "todo";
+                render();
+            };
+
+            document.getElementById("tabDone").onclick = function () {
+                view = "done";
+                render();
+            };
+            load();
+            render();
+        </script>
+
+    </body>
+</html>
