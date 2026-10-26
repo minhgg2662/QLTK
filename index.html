@@ -27,6 +27,10 @@
                 color:#999;
             }
 
+            .flash { background:#e3e6e4 !important; color:#999 !important; }
+            button { touch-action: manipulation; }
+            input {font-size: 16px;}
+
         </style>
     </head>
     <body>
@@ -52,11 +56,11 @@
 
             function load() {   
                 const saved = localStorage.getItem("acc");
-                if (saved) item = JSON.parse(saved);
+                if (saved) items = JSON.parse(saved);
             }
 
             function save() {
-                localStorage.setItem("acc", JSON.stringify(item));
+                localStorage.setItem("acc", JSON.stringify(items));
             }
 
             function render() {
@@ -95,7 +99,7 @@
 
             function remove(id) {
                 items = items.filter(function (i) {
-                    return it.id !== id;
+                    return i.id !== id;
                 });
                 save();
                 render();
@@ -128,8 +132,8 @@
             function add(text) {
                 text = text.trim();
                 if (!text) return;
-                const trung =items.some(function (i) {
-                    return i.text === text;
+                const trung = items.some(function (i) {
+                    return i.text == text;
                 });
                 if (trung) {
                     alert("Tài khoản đã tồn tại");
@@ -140,13 +144,29 @@
                 render();
             }
 
-            document.getElementById("addBtn").onclick = function () {
-                const o = document.getElementById("one");
-                add(o.value);
-                o.value = "";
-                o.focus();
-            };
+            function addaccount() {
+                const btn = document.getElementById("addBtn");
+                btn.classList.add("disabled");
+                setTimeout(function () {
+                    btn.classList.remove("flash");
+                }, 200);
 
+                const o = document.getElementById("one");
+                const giatri = o.value;
+                add(giatri);
+                o.value = "";
+                requestAnimationFrame(render);
+            }
+
+
+            document.getElementById("addBtn").addEventListener("click", addaccount);
+
+            document.getElementById("one").addEventListener("keydown", function (e) {
+                if (e.key == "Enter") {
+                    e.preventDefault();
+                    addaccount();
+                }
+            });
             document.getElementById("tabTodo").onclick = function () {
                 view = "todo";
                 render();
