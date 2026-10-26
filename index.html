@@ -34,23 +34,40 @@
         </style>
     </head>
     <body>
-        
-        <h1>Quản lý tài khoản</h1>
+        <div id="loginBox" style="display:none">
+            <div>
+                <input id="email" type="email" placeholder="Email" aria-label="Email">
+            </div>
+            <div>
+                <input id="pass" type="password" placeholder="Mật khẩu" aria-label="Mật khẩu">
+                <button id="loginBtn">Đăng nhập</button>
+            </div>
+            <div id="loginMsg" style="color:#b3402a"></div>
+        </div>
+        <div id="appBox" style="display:none">
+            <h1>Quản lý tài khoản</h1>
+            <div>
+                <label for="one">Tên tài khoản:</label>
+                <input id="one" placeholder="Nhập tên tài khoản">
+                <button id="addBtn">Thêm tài khoản</button>
+            </div>
 
-        <div>
-            <label for="one">Tên tài khoản:</label>
-            <input id="one" placeholder="Nhập tên tài khoản">
-            <button id="addBtn">Thêm tài khoản</button>
+            <div>
+                <button id="tabTodo">Chưa copy</button>
+                <button id="tabDone">Đã copy</button>
+            </div>
+
+            <ul id="list"></ul>
+
+            <button id="logoutBtn">Đăng xuất</button>
         </div>
 
-        <div>
-            <button id="tabTodo">Chưa copy</button>
-            <button id="tabDone">Đã copy</button>
-        </div>
-
-        <ul id="list"></ul>
+        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 
         <script>
+            const SUPABASE_URL = "https://iyrapveridnejeabjepj.supabase.co";
+            const SUPABASE_KEY = "sb_publishable_Y-fw8_QC2B3euuIVcsxr9A_wOvr0_22";
+            const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
             let items = [];
             let view = "todo";
 
@@ -158,7 +175,6 @@
                 requestAnimationFrame(render);
             }
 
-
             document.getElementById("addBtn").addEventListener("click", addaccount);
 
             document.getElementById("one").addEventListener("keydown", function (e) {
@@ -167,6 +183,7 @@
                     addaccount();
                 }
             });
+
             document.getElementById("tabTodo").onclick = function () {
                 view = "todo";
                 render();
@@ -176,8 +193,53 @@
                 view = "done";
                 render();
             };
+            
+            function showLogin() {
+                document.getElementById("loginBox").style.display = "block";
+                document.getElementById("appBox").style.display = "none";
+            }
+
+            function showApp() {
+                document.getElementById("loginBox").style.display = "none";
+                document.getElementById("appBox").style.display = "block";
+            }
+
+            async function checkLogin() {
+            const res = await db.auth.getSession();
+                if (res.data.session) {
+                showApp();
+                } else {
+                    showLogin();
+                }
+            }
+
+            async function dangNhap() {
+                document.getElementById("loginMsg").textContent = "";
+                const res = await db.auth.signInWithPassword({
+                email: document.getElementById("email").value.trim(),
+                password: document.getElementById("pass").value
+            });
+            if (res.error) {
+                document.getElementById("loginMsg").textContent = "Sai email hoặc mật khẩu";
+                return;
+            }
+            document.getElementById("pass").value = "";
+            checkLogin();
+            }
+
+            async function dangXuat() {
+                await db.auth.signOut();
+                checkLogin();
+            }
+
+            document.getElementById("loginBtn").onclick = dangNhap;
+            document.getElementById("logoutBtn").onclick = dangXuat;
+            document.getElementById("pass").addEventListener("keydown", function (e) {
+                if (e.key === "Enter") dangNhap();
+            });
             load();
             render();
+            checkLogin();
         </script>
 
     </body>
