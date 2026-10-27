@@ -30,6 +30,8 @@
             .flash { background:#e3e6e4 !important; color:#999 !important; }
             button { touch-action: manipulation; }
             input {font-size: 16px;}
+            textarea { width: 100%;resize: vertical; margin-top: 6px; font-size: 15px; }
+            .box-section { margin-bottom: 16px; }
 
         </style>
     </head>
@@ -51,6 +53,11 @@
                 <input id="one" placeholder="Nhập tên tài khoản">
                 <button id="addBtn">Thêm tài khoản</button>
             </div>
+            <div class="box-section" style="padding-top: 12px; border-top: 1px dashed #ccc;">
+                <label for="many">Thêm nhiều tài khoản (mỗi 1 dòng 1 tài khoản):</label><br>
+                <textarea id="many" rows="3" placeholder="Dán danh sách tài khoản vào đây"></textarea>
+                <button id="addManyBtn" style="margin-top: 6px;">Thêm hàng loạt</button>
+            </div>
 
             <div>
                 <button id="tabTodo">Chưa copy</button>
@@ -71,13 +78,12 @@
             let items = [];
             let view = "todo";
 
-            function load() {   
-                const saved = localStorage.getItem("acc");
-                if (saved) items = JSON.parse(saved);
-            }
-
-            function save() {
-                localStorage.setItem("acc", JSON.stringify(items));
+            async function load() {
+                const {data,error} = await db.from('accounts').select('*').order('id', {ascending: true });
+                if (!error && data) {
+                    items = data;
+                    render();
+                }
             }
 
             function render() {
@@ -114,12 +120,14 @@
                 });
             }
 
-            function remove(id) {
-                items = items.filter(function (i) {
-                    return i.id !== id;
-                });
-                save();
-                render();
+            async function remove(id) {
+                const {error} = await db.from('accounts').delete().eq('id', id);
+                if (!error) {
+                    items = items.filter(function(i) {return i.id !== id;});
+                    render();
+                } else {
+                    alert("Lỗi khi xóa: " + error.message);
+                }
             }
 
             async function doCopy(it) {
@@ -130,23 +138,27 @@
                     return;
                 }
                 it.copied = true;
+                await db.from('accounts').update({ copied: true }).eq('id', it.id);
 
                 const conlai = items.filter(function (i) {
                     return !i.copied;
                 });
                 if (conlai.length === 0) {
-                    items.forEach(function (i) {
+                    items.forEach(function(i) {
                         i.copied = false;
                     });
+                    const { data: userData } =  await db.auth.getUser();
+                    if (userData && userData.user){
+                        await db.from('accounts').update({ copied: false }).eq('user_id', userData.user.id);
+                    }
                     view = "todo";
                     alert("Đã copy hết tài khoản, quay lại danh sách chưa copy");
                 }
 
-                save();
                 render();
             }
 
-            function add(text) {
+            async function add(text) {
                 text = text.trim();
                 if (!text) return;
                 const trung = items.some(function (i) {
@@ -156,27 +168,86 @@
                     alert("Tài khoản đã tồn tại");
                     return;
                 }
-                items.push({ id: Date.now(), text: text, copied: false });
-                save();
-                render();
+                const { data, error } = await db.from('accounts')
+                    .insert({ text: text, copied: false })
+                    .select()
+                    .single();
+                    
+                if (!error) {
+                    items.push(data);
+                    render();
+                }else{
+                    alert("Lỗi khi thêm tài khoản: " + error.message);
+                }
+            }
+
+            async function addMutiple(rawtext) {
+                const lines = rawtext.split('\n')
+                    .map(function(i) { return i.trim(); })
+                    .filter(function(i) { return i.length >0; });
+
+                if (lines.length === 0) return;
+                const { data: userData} = await db.auth.getUser();
+                if (!userData || !userData.user) return;
+
+                const newItems = [];
+                const skipped = [];
+
+                lines.forEach(function(text, index){
+                    const trungTrongItems = items.some(function(i) {return i.text == text; });
+                    const trungTrongBatch = newItems.some(function(i) {return i.text == text; });
+
+                    if (trungTrongItems || trungTrongBatch) {
+                        skipped.push(text)
+                    } else {
+                        newItems.push({
+                            text: text,
+                            copied: false,
+                            user_id: userData.user.id
+                        });
+                    }
+                });
+
+                if (newItems.length === 0) {
+                    alert("Không có tài khoản mới để thêm!");
+                    return;
+                }
+                if (newItems.length > 0) {
+                    const { error } = await db.from('accounts').insert(newItems);
+                    if (!error) {
+                        await load();
+                        document.getElementById("many").value = "";
+                        alert (
+                            "Đã thêm "+ newItems.length +
+                            " tài khoản. Bỏ qua " + skipped.length +
+                            " tài khoản trùng lặp."
+                        );
+                    } else {
+                        alert("Lỗi khi thêm danh sách: " + error.message);
+                        return;
+                    }
+                }
             }
 
             function addaccount() {
                 const btn = document.getElementById("addBtn");
-                btn.classList.add("disabled");
+                btn.classList.add("flash");
                 setTimeout(function () {
                     btn.classList.remove("flash");
                 }, 200);
 
                 const o = document.getElementById("one");
-                const giatri = o.value;
-                add(giatri);
+                add(o.value);
                 o.value = "";
-                requestAnimationFrame(render);
+            }
+
+            async function addManyaccounts() {
+                const o = document.getElementById("many");
+                await addMutiple(o.value);
             }
 
             document.getElementById("addBtn").addEventListener("click", addaccount);
-
+            document.getElementById("addManyBtn").addEventListener("click", addManyaccounts);
             document.getElementById("one").addEventListener("keydown", function (e) {
                 if (e.key == "Enter") {
                     e.preventDefault();
@@ -205,12 +276,17 @@
             }
 
             async function checkLogin() {
-            const res = await db.auth.getSession();
-                if (res.data.session) {
-                showApp();
-                } else {
-                    showLogin();
-                }
+                try {
+                    const res = await db.auth.getSession();
+                        if (res.data.session) {
+                            showApp();
+                            await load();
+                        } else {
+                            showLogin();
+                        }
+                    } catch {
+                        showLogin();
+                    }
             }
 
             async function dangNhap() {
@@ -237,8 +313,7 @@
             document.getElementById("pass").addEventListener("keydown", function (e) {
                 if (e.key === "Enter") dangNhap();
             });
-            load();
-            render();
+
             checkLogin();
         </script>
 
